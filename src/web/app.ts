@@ -63,7 +63,7 @@ export function createApp(deps: AppDeps): Koa {
   const router = createRouter({
     chatService,
     logger,
-    maxMessagesPerPage: config.messagesPerSession,
+    maxMessagesPerPage: config.displayMaxMessages,
     config,
   });
   app.use(router.routes());

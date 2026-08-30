@@ -2,21 +2,40 @@ import type { OneBotMessageEvent, OneBotMessageSegment } from './types.js';
 
 export type AtNameResolver = (qq: string) => string | null | undefined;
 
-const CQ_AT_RE = /\[CQ:at,([^\]]*)\]/g;
+const CQ_CODE_RE = /\[CQ:([^,\]]+)(?:,([^\]]*))?\]/g;
+
+const SEGMENT_LABELS: Record<string, string> = {
+  image: '[图片]',
+  face: '[表情]',
+  record: '[语音]',
+  video: '[视频]',
+  file: '[文件]',
+  share: '[链接]',
+  music: '[音乐]',
+  location: '[位置]',
+  reply: '[回复]',
+  contact: '[联系人]',
+  redbag: '[红包]',
+  json: '[卡片]',
+  forward: '[合并转发]',
+  poke: '[戳一戳]',
+  dice: '[骰子]',
+  rps: '[猜拳]',
+};
 
 /**
  * 从 OneBot v11 消息事件中提取可读文本内容。
- * - `message` 为字符串时，将 `[CQ:at,qq=xxx]` 转为 `@xxx`（或 `@昵称`）。
- * - `message` 为段数组时，拼接 text 段，并将 at 段转为 `@xxx`（或 `@昵称`）。
+ * - `message` 为字符串时，将 `[CQ:xxx,...]` 转为可读文本：at 转 `@昵称`/`@QQ号`，其余转 `[图片]` 等占位符。
+ * - `message` 为段数组时，拼接 text 段、at 段，其余类型转占位符。
  * - `resolveAtName` 可选：用于把 at 的 QQ 号解析为昵称/群名片。
  */
 export function extractMessageText(message: unknown, resolveAtName?: AtNameResolver): string {
   if (typeof message === 'string') {
-    return message.replace(CQ_AT_RE, (_m, params: string) => {
-      const { qq, name } = parseCqAtParams(params);
-      if (name) return `@${name}`;
-      if (qq) return `@${resolveAtName?.(qq) ?? qq}`;
-      return '@';
+    return message.replace(CQ_CODE_RE, (_m, type: string, params: string | undefined) => {
+      if (type === 'at') {
+        return formatCqAt(params ?? '', resolveAtName);
+      }
+      return segmentLabel(type) ?? '';
     });
   }
   if (Array.isArray(message)) {
@@ -28,6 +47,9 @@ export function extractMessageText(message: unknown, resolveAtName?: AtNameResol
         parts.push(typed.data.text);
       } else if (typed.type === 'at' && typed.data) {
         parts.push(formatMention(typed.data, resolveAtName));
+      } else {
+        const label = segmentLabel(typed.type);
+        if (label) parts.push(label);
       }
     }
     return parts.join('');
@@ -74,6 +96,13 @@ function formatMention(data: Record<string, unknown>, resolveAtName?: AtNameReso
   return '@';
 }
 
+function formatCqAt(params: string, resolveAtName?: AtNameResolver): string {
+  const { qq, name } = parseCqAtParams(params);
+  if (name) return `@${name}`;
+  if (qq) return `@${resolveAtName?.(qq) ?? qq}`;
+  return '@';
+}
+
 function parseCqAtParams(params: string): { qq?: string; name?: string } {
   const result: { qq?: string; name?: string } = {};
   for (const raw of params.split(',')) {
@@ -86,6 +115,10 @@ function parseCqAtParams(params: string): { qq?: string; name?: string } {
     else if (key === 'name') result.name = value;
   }
   return result;
+}
+
+function segmentLabel(type: string): string | null {
+  return SEGMENT_LABELS[type] ?? null;
 }
 
 export function resolveSenderName(event: OneBotMessageEvent, selfId: number): string {

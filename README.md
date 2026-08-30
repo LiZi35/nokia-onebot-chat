@@ -49,6 +49,8 @@ AUTH_PASSWORD=请改为自己的密码
 - `SESSION_KEYS`：Cookie 签名密钥，逗号分隔多个密钥；生产环境必须改为随机值。
 - `COOKIE_SECURE`：强制给 Cookie 加 `Secure` 标志；默认 `false`（自动按连接是否为 HTTPS 判断）。
 - `TRUST_PROXY`：位于 nginx 等反向代理之后时设为 `true`，信任 `X-Forwarded-*` 头；默认 `false`。
+- `MAX_SESSIONS` / `MESSAGES_PER_SESSION`：内存缓存会话数上限 / 单会话存储消息数上限（默认 100 / 100）。
+- `DISPLAY_MAX_MESSAGES`：聊天页单页最多显示的消息条数（默认 50）。
 - `AUTH_USERNAME` / `AUTH_PASSWORD`：登录账号与密码；两者同时设置即启用登录鉴权，留空则禁用。
 
 ## nginx 反向代理

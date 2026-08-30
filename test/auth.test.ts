@@ -45,6 +45,7 @@ function makeConfig(overrides: Partial<AppConfig> = {}): AppConfig {
     messageMaxLength: 4000,
     maxSessions: 100,
     messagesPerSession: 100,
+    displayMaxMessages: 50,
     apiTimeoutMs: 1000,
     connectTimeoutMs: 1000,
     reconnectMinDelayMs: 100,

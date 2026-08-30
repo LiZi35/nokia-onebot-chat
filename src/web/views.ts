@@ -83,6 +83,7 @@ const CHAT_TEMPLATE = `{% extends "base.html" %}
   {% if messages.length == 0 %}
     <p>暂无消息。本次服务运行期间收到的消息会显示在这里；OneBot 标准接口无法可靠拉取历史消息。</p>
   {% else %}
+    <p class="meta">显示最近 {{ messages.length }} 条消息（最多 {{ maxMessages }} 条）。</p>
     {% for m in messages %}
       <div class="box">
         <strong>{{ m.senderName }}</strong>
@@ -192,6 +193,7 @@ export interface ChatData extends PageData {
   formAction: string;
   csrf: string;
   isGroup: boolean;
+  maxMessages: number;
   messages: Array<{ senderName: string; typeLabel: string; time: number; text: string }>;
 }
 

@@ -15,12 +15,14 @@ describe('loadConfig', () => {
       ONEBOT_WS_URL: 'ws://example.com:9999',
       PORT: '8080',
       MESSAGE_MAX_LENGTH: '100',
+      DISPLAY_MAX_MESSAGES: '30',
       SESSION_KEYS: 'a,b,c',
     });
     expect(result.ok).toBe(true);
     expect(result.config?.port).toBe(8080);
     expect(result.config?.onebotWsUrl).toBe('ws://example.com:9999');
     expect(result.config?.messageMaxLength).toBe(100);
+    expect(result.config?.displayMaxMessages).toBe(30);
     expect(result.config?.sessionKeys).toEqual(['a', 'b', 'c']);
   });
 

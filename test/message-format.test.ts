@@ -17,15 +17,14 @@ describe('extractMessageText', () => {
       extractMessageText([
         { type: 'text', data: { text: '你好' } },
         { type: 'text', data: { text: '世界' } },
-        { type: 'image', data: { file: 'x' } },
       ]),
     ).toBe('你好世界');
   });
 
-  it('returns empty string for non-text messages', () => {
-    expect(extractMessageText([{ type: 'image', data: { file: 'x' } }])).toBe('');
+  it('returns empty string for unparseable values', () => {
     expect(extractMessageText(12345)).toBe('');
     expect(extractMessageText(undefined)).toBe('');
+    expect(extractMessageText(null)).toBe('');
   });
 
   it('converts at segments to @mention', () => {
@@ -66,6 +65,21 @@ describe('extractMessageText', () => {
     ).toBe('@张三 早');
     expect(extractMessageText('[CQ:at,qq=123456] 早', resolve)).toBe('@张三 早');
     expect(extractMessageText('[CQ:at,qq=999] 早', resolve)).toBe('@999 早');
+  });
+
+  it('renders non-text segments as placeholders', () => {
+    expect(
+      extractMessageText([
+        { type: 'image', data: { file: 'x.png' } },
+        { type: 'text', data: { text: '看' } },
+      ]),
+    ).toBe('[图片]看');
+    expect(extractMessageText([{ type: 'face', data: { id: '1' } }])).toBe('[表情]');
+  });
+
+  it('converts non-text CQ codes to placeholders instead of raw codes', () => {
+    expect(extractMessageText('[CQ:image,file=abc.png,url=http://x]')).toBe('[图片]');
+    expect(extractMessageText('看[CQ:image,file=abc.png]图')).toBe('看[图片]图');
   });
 });
 

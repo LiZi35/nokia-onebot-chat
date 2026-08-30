@@ -47,8 +47,41 @@ AUTH_PASSWORD=请改为自己的密码
 - `ONEBOT_WS_URL`：OneBot v11 WebSocket 服务地址，默认 `ws://127.0.0.1:3001`。
 - `DB_PATH`：SQLite 数据库文件路径，默认 `./data/chat.db`。
 - `SESSION_KEYS`：Cookie 签名密钥，逗号分隔多个密钥；生产环境必须改为随机值。
-- `COOKIE_SECURE`：生产 HTTPS 下设为 `true`，本地 HTTP 开发保持 `false`。
+- `COOKIE_SECURE`：强制给 Cookie 加 `Secure` 标志；默认 `false`（自动按连接是否为 HTTPS 判断）。
+- `TRUST_PROXY`：位于 nginx 等反向代理之后时设为 `true`，信任 `X-Forwarded-*` 头；默认 `false`。
 - `AUTH_USERNAME` / `AUTH_PASSWORD`：登录账号与密码；两者同时设置即启用登录鉴权，留空则禁用。
+
+## nginx 反向代理
+
+应用本身不依赖客户端 WebSocket（OneBot 连接由服务端向外发起），因此 nginx 只需做普通 HTTP 反代。所有重定向与页面链接均为相对路径，不硬编码域名。
+
+```nginx
+server {
+    listen 443 ssl;
+    server_name chat.example.com;
+
+    ssl_certificate     /path/to/fullchain.pem;
+    ssl_certificate_key /path/to/privkey.pem;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host              $host;
+        proxy_set_header X-Real-IP         $remote_addr;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host  $host;
+    }
+}
+```
+
+启动环境变量需配置：
+
+```env
+TRUST_PROXY=true      # 信任 nginx 传入的 X-Forwarded-* 头
+# COOKIE_SECURE 可不设（默认自动判断），也可显式设为 true
+```
+
+> 注意：`TRUST_PROXY=true` 后应用会信任 `X-Forwarded-*` 头，请确保仅 nginx 能访问该端口（例如应用只监听 `127.0.0.1`），避免客户端伪造这些头。
 
 ## SQLite 持久化
 

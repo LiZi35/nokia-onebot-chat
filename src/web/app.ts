@@ -20,7 +20,7 @@ export function createApp(deps: AppDeps): Koa {
   const { config, logger, chatService, sessionStore } = deps;
   const app = new Koa();
 
-  app.proxy = false;
+  app.proxy = config.trustProxy;
   app.keys = config.sessionKeys;
 
   app.use(errorHandler(logger));
@@ -38,7 +38,7 @@ export function createApp(deps: AppDeps): Koa {
         maxAge: 24 * 60 * 60 * 1000,
         httpOnly: true,
         signed: true,
-        secure: config.cookieSecure,
+        secure: config.cookieSecure ? true : undefined,
         sameSite: 'lax',
         overwrite: true,
         store: sessionStore,

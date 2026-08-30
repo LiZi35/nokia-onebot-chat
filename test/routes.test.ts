@@ -43,6 +43,7 @@ const config: AppConfig = {
   dbPath: ':memory:',
   sessionKeys: ['test-secret'],
   cookieSecure: false,
+  trustProxy: false,
   authUsername: '',
   authPassword: '',
   messageMaxLength: 4000,

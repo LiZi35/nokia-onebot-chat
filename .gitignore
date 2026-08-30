@@ -1,0 +1,10 @@
+node_modules/
+dist/
+coverage/
+*.log
+.DS_Store
+.playwright-mcp/
+.env
+data/
+NOKIA108-COMPATIBILITY.md
+TASK.md

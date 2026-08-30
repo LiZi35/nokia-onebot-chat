@@ -95,6 +95,7 @@ const CHAT_TEMPLATE = `{% extends "base.html" %}
     <form action="{{ formAction }}" method="post">
       <p>发送消息（{{ chatTitle }}）：</p>
       <p><textarea name="message" rows="3"></textarea></p>
+      {% if isGroup %}<p class="meta">提示：可在消息中输入 @QQ号 提到某人（如 @123456 你好）。</p>{% endif %}
       <input type="hidden" name="_csrf" value="{{ csrf }}">
       <p><input type="submit" value="发送"></p>
     </form>
@@ -189,6 +190,7 @@ export interface ChatData extends PageData {
   chatPath: string;
   formAction: string;
   csrf: string;
+  isGroup: boolean;
   messages: Array<{ senderName: string; typeLabel: string; time: number; text: string }>;
 }
 

@@ -132,6 +132,7 @@ export function createRouter(deps: WebDeps): Router {
       chatPath: `/chat/${type}/${peerId}`,
       formAction: `/chat/${type}/${peerId}/send`,
       csrf: getCsrfToken(ctx),
+      isGroup: type === 'group',
       messages,
     });
   });

@@ -74,6 +74,27 @@ describe('ChatService', () => {
     expect(result.error).toBe('消息不能为空');
   });
 
+  it('sends group mentions as message segments', async () => {
+    const { service, client } = setup();
+    client.sendApi.mockResolvedValueOnce({ user_id: 100 });
+    client.sendApi.mockResolvedValueOnce([]);
+    client.sendApi.mockResolvedValueOnce([{ group_id: 200, group_name: 'g' }]);
+    await service.refreshDirectory();
+
+    client.sendApi.mockResolvedValueOnce({ message_id: 9 });
+    const result = await service.sendText('group', 200, '你好 @123456 在吗');
+    expect(result.ok).toBe(true);
+
+    const call = client.sendApi.mock.calls.find((c) => c[0] === 'send_msg') as
+      [string, Record<string, unknown>] | undefined;
+    expect(call?.[1]).toMatchObject({ message_type: 'group', group_id: 200 });
+    expect(call?.[1].message).toEqual([
+      { type: 'text', data: { text: '你好 ' } },
+      { type: 'at', data: { qq: '123456' } },
+      { type: 'text', data: { text: ' 在吗' } },
+    ]);
+  });
+
   it('rejects overlong messages', async () => {
     const { service } = setup();
     const result = await service.sendText('private', 100, 'x'.repeat(101));

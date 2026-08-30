@@ -72,7 +72,7 @@ export interface SendMsgParams {
   message_type: 'private' | 'group';
   user_id?: number;
   group_id?: number;
-  message: string;
+  message: string | OneBotMessageSegment[];
   auto_escape?: boolean;
 }
 

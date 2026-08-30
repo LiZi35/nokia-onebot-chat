@@ -1,6 +1,11 @@
 import type { FriendInfo, GroupInfo, OneBotMessageEvent } from '../onebot/types.js';
 import type { OneBotClient } from '../onebot/client.js';
-import { extractMessageText, resolveSenderName } from '../onebot/message-format.js';
+import {
+  extractMessageText,
+  resolveSenderName,
+  parseMentionText,
+  containsMention,
+} from '../onebot/message-format.js';
 import type { Logger } from '../logger.js';
 import {
   MessageStore,
@@ -148,11 +153,14 @@ export class ChatService {
     }
 
     try {
+      const isGroup = type === 'group';
+      // 群聊中支持 @QQ号 提及：转为消息段数组发送；私聊保持纯文本并转义。
+      const message = isGroup && containsMention(trimmed) ? parseMentionText(trimmed) : trimmed;
       const result = await this.client.sendApi<{ message_id?: number }>('send_msg', {
         message_type: type,
         ...(type === 'private' ? { user_id: peerId } : { group_id: peerId }),
-        message: trimmed,
-        auto_escape: true,
+        message,
+        auto_escape: isGroup && containsMention(trimmed) ? undefined : true,
       });
       const messageId = typeof result.message_id === 'number' ? result.message_id : 0;
       this.store.add({

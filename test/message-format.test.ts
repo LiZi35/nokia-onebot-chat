@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { extractMessageText, resolveSenderName } from '../src/onebot/message-format.js';
+import {
+  extractMessageText,
+  resolveSenderName,
+  parseMentionText,
+  containsMention,
+} from '../src/onebot/message-format.js';
 import type { OneBotMessageEvent } from '../src/onebot/types.js';
 
 describe('extractMessageText', () => {
@@ -21,6 +26,49 @@ describe('extractMessageText', () => {
     expect(extractMessageText([{ type: 'image', data: { file: 'x' } }])).toBe('');
     expect(extractMessageText(12345)).toBe('');
     expect(extractMessageText(undefined)).toBe('');
+  });
+
+  it('converts at segments to @mention', () => {
+    expect(
+      extractMessageText([
+        { type: 'at', data: { qq: '123456' } },
+        { type: 'text', data: { text: ' 你好' } },
+      ]),
+    ).toBe('@123456 你好');
+  });
+
+  it('prefers name in at segments when present', () => {
+    expect(extractMessageText([{ type: 'at', data: { qq: '123456', name: '张三' } }])).toBe(
+      '@张三',
+    );
+  });
+
+  it('converts CQ at codes in string messages', () => {
+    expect(extractMessageText('你好[CQ:at,qq=123456]在吗')).toBe('你好@123456在吗');
+    expect(extractMessageText('[CQ:at,qq=123456,name=李四] 早')).toBe('@李四 早');
+  });
+});
+
+describe('parseMentionText', () => {
+  it('splits text around mentions into segments', () => {
+    expect(parseMentionText('你好 @123456 在吗')).toEqual([
+      { type: 'text', data: { text: '你好 ' } },
+      { type: 'at', data: { qq: '123456' } },
+      { type: 'text', data: { text: ' 在吗' } },
+    ]);
+  });
+
+  it('handles a message that is only a mention', () => {
+    expect(parseMentionText('@123456')).toEqual([{ type: 'at', data: { qq: '123456' } }]);
+  });
+
+  it('returns a single text segment when no mention present', () => {
+    expect(parseMentionText('普通文本')).toEqual([{ type: 'text', data: { text: '普通文本' } }]);
+  });
+
+  it('detects mentions', () => {
+    expect(containsMention('你好 @123456')).toBe(true);
+    expect(containsMention('你好')).toBe(false);
   });
 });
 

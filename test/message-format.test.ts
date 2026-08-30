@@ -47,6 +47,26 @@ describe('extractMessageText', () => {
     expect(extractMessageText('你好[CQ:at,qq=123456]在吗')).toBe('你好@123456在吗');
     expect(extractMessageText('[CQ:at,qq=123456,name=李四] 早')).toBe('@李四 早');
   });
+
+  it('parses CQ at codes with extra fields in any order', () => {
+    expect(extractMessageText('[CQ:at,qq=123456,id=9] hi')).toBe('@123456 hi');
+    expect(extractMessageText('[CQ:at,name=王五,qq=111] hi')).toBe('@王五 hi');
+  });
+
+  it('resolves at names via the resolver callback', () => {
+    const resolve = (qq: string) => (qq === '123456' ? '张三' : null);
+    expect(
+      extractMessageText(
+        [
+          { type: 'at', data: { qq: '123456' } },
+          { type: 'text', data: { text: ' 早' } },
+        ],
+        resolve,
+      ),
+    ).toBe('@张三 早');
+    expect(extractMessageText('[CQ:at,qq=123456] 早', resolve)).toBe('@张三 早');
+    expect(extractMessageText('[CQ:at,qq=999] 早', resolve)).toBe('@999 早');
+  });
 });
 
 describe('parseMentionText', () => {

@@ -91,6 +91,7 @@ const CHAT_TEMPLATE = `{% extends "base.html" %}
       </div>
     {% endfor %}
   {% endif %}
+  <p class="meta"><a href="{{ chatPath }}">刷新消息</a></p>
   <div class="box">
     <form action="{{ formAction }}" method="post">
       <p>发送消息（{{ chatTitle }}）：</p>

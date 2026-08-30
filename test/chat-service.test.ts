@@ -148,4 +148,40 @@ describe('ChatService', () => {
     expect(messages[0]?.senderName).toBe('李四');
     expect(messages[0]?.type).toBe('group');
   });
+
+  it('resolves group at mentions to member names', async () => {
+    const { service, store, client } = setup();
+    client.sendApi.mockImplementation(async (action: string) => {
+      if (action === 'get_login_info') return { user_id: 100 };
+      if (action === 'get_friend_list') return [];
+      if (action === 'get_group_list') return [{ group_id: 300, group_name: 'g' }];
+      if (action === 'get_group_member_list') {
+        return [{ user_id: 200, nickname: '李四', card: '' }];
+      }
+      return {};
+    });
+    await service.refreshDirectory();
+    service.start();
+
+    const event: OneBotMessageEvent = {
+      time: 1000,
+      self_id: 100,
+      post_type: 'message',
+      message_type: 'group',
+      sub_type: 'normal',
+      message_id: 5,
+      user_id: 999,
+      group_id: 300,
+      message: [
+        { type: 'at', data: { qq: '200' } },
+        { type: 'text', data: { text: ' 你好' } },
+      ],
+      raw_message: '[CQ:at,qq=200] 你好',
+      sender: { user_id: 999, nickname: '王五' },
+    };
+    client.messageHandler?.(event);
+
+    const messages = store.getMessages('group:300');
+    expect(messages[0]?.text).toBe('@李四 你好');
+  });
 });

@@ -1,4 +1,9 @@
-import type { FriendInfo, GroupInfo, OneBotMessageEvent } from '../onebot/types.js';
+import type {
+  FriendInfo,
+  GroupInfo,
+  GroupMemberInfo,
+  OneBotMessageEvent,
+} from '../onebot/types.js';
 import type { OneBotClient } from '../onebot/client.js';
 import {
   extractMessageText,
@@ -40,6 +45,7 @@ export class ChatService {
   private readonly messageMaxLength: number;
   private selfId = 0;
   private directory: Directory = { friends: [], groups: [] };
+  private readonly groupMemberNames = new Map<number, Map<number, string>>();
   private unsubscribe: (() => void) | null = null;
   private unsubscribeState: (() => void) | null = null;
 
@@ -101,9 +107,39 @@ export class ChatService {
 
     if (groups.status === 'fulfilled' && Array.isArray(groups.value)) {
       this.directory.groups = groups.value.filter((g) => typeof g.group_id === 'number');
+      await this.refreshGroupMembers(this.directory.groups.map((g) => g.group_id));
     } else {
       this.logger.warn('获取群列表失败');
     }
+  }
+
+  private async refreshGroupMembers(groupIds: number[]): Promise<void> {
+    await Promise.allSettled(
+      groupIds.map(async (groupId) => {
+        try {
+          const members = await this.client.sendApi<GroupMemberInfo[]>('get_group_member_list', {
+            group_id: groupId,
+          });
+          if (!Array.isArray(members)) return;
+          const names = new Map<number, string>();
+          for (const m of members) {
+            if (typeof m.user_id !== 'number') continue;
+            names.set(m.user_id, m.card || m.nickname || String(m.user_id));
+          }
+          this.groupMemberNames.set(groupId, names);
+        } catch {
+          this.logger.debug('获取群成员列表失败', { groupId });
+        }
+      }),
+    );
+  }
+
+  private resolveGroupMemberName(groupId: number, qq: string): string | null {
+    const names = this.groupMemberNames.get(groupId);
+    if (!names) return null;
+    const id = Number(qq);
+    if (!Number.isSafeInteger(id)) return null;
+    return names.get(id) ?? null;
   }
 
   getSessions(): SessionSummary[] {
@@ -154,13 +190,19 @@ export class ChatService {
 
     try {
       const isGroup = type === 'group';
+      const hasMention = isGroup && containsMention(trimmed);
       // 群聊中支持 @QQ号 提及：转为消息段数组发送；私聊保持纯文本并转义。
-      const message = isGroup && containsMention(trimmed) ? parseMentionText(trimmed) : trimmed;
+      const message = hasMention ? parseMentionText(trimmed) : trimmed;
+      const displayText = hasMention
+        ? extractMessageText(message, (qq) =>
+            isGroup ? this.resolveGroupMemberName(peerId, qq) : null,
+          )
+        : trimmed;
       const result = await this.client.sendApi<{ message_id?: number }>('send_msg', {
         message_type: type,
         ...(type === 'private' ? { user_id: peerId } : { group_id: peerId }),
         message,
-        auto_escape: isGroup && containsMention(trimmed) ? undefined : true,
+        auto_escape: hasMention ? undefined : true,
       });
       const messageId = typeof result.message_id === 'number' ? result.message_id : 0;
       this.store.add({
@@ -169,7 +211,7 @@ export class ChatService {
         type,
         senderId: this.selfId,
         senderName: `自己 (${this.selfId})`,
-        text: trimmed,
+        text: displayText,
         time: Math.floor(Date.now() / 1000),
         self: true,
       });
@@ -194,7 +236,23 @@ export class ChatService {
   private handleMessageEvent(event: OneBotMessageEvent): void {
     const type: ChatType = event.message_type;
     const peerId = type === 'private' ? event.user_id : (event.group_id ?? event.user_id);
-    const text = extractMessageText(event.message);
+
+    if (type === 'group' && !this.groupMemberNames.has(peerId)) {
+      void this.refreshGroupMembers([peerId]);
+    }
+
+    const resolveAtName = (qq: string): string | null =>
+      type === 'group' ? this.resolveGroupMemberName(peerId, qq) : null;
+
+    let text = extractMessageText(event.message, resolveAtName);
+    if (
+      text.length === 0 &&
+      typeof event.raw_message === 'string' &&
+      event.raw_message.length > 0
+    ) {
+      text = extractMessageText(event.raw_message, resolveAtName);
+    }
+
     const self = event.user_id === this.selfId || event.sender?.user_id === this.selfId;
 
     this.store.add({

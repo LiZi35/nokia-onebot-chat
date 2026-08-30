@@ -56,6 +56,13 @@ export interface GroupInfo {
   max_member_count?: number;
 }
 
+export interface GroupMemberInfo {
+  user_id: number;
+  nickname: string;
+  card?: string;
+  role?: string;
+}
+
 export interface SendPrivateMsgParams {
   user_id: number;
   message: string;

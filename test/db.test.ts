@@ -72,6 +72,22 @@ describe('SqliteMessageRepository', () => {
     });
     db.close();
   });
+
+  it('round-trips image urls', () => {
+    const db = openDatabase(':memory:');
+    const repo = new SqliteMessageRepository(db);
+    repo.save(
+      record({
+        messageId: 3,
+        text: '[图片]和[图片]',
+        imageUrls: ['https://cdn.example/a.png', ''],
+      }),
+      10,
+    );
+    const [m] = repo.listRecent('private:100', 10);
+    expect(m?.imageUrls).toEqual(['https://cdn.example/a.png', '']);
+    db.close();
+  });
 });
 
 describe('MessageStore with persistence', () => {

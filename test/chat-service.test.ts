@@ -149,6 +149,33 @@ describe('ChatService', () => {
     expect(messages[0]?.type).toBe('group');
   });
 
+  it('stores image urls from incoming image messages', () => {
+    const { service, store, client } = setup();
+    service.start();
+
+    const event: OneBotMessageEvent = {
+      time: 1000,
+      self_id: 100,
+      post_type: 'message',
+      message_type: 'group',
+      sub_type: 'normal',
+      message_id: 6,
+      user_id: 200,
+      group_id: 300,
+      message: [
+        { type: 'text', data: { text: '看' } },
+        { type: 'image', data: { file: 'a.jpg', url: 'https://cdn.example/a.jpg' } },
+      ],
+      raw_message: '看[CQ:image,file=a.jpg,url=https://cdn.example/a.jpg]',
+      sender: { user_id: 200, nickname: '李四' },
+    };
+    client.messageHandler?.(event);
+
+    const messages = store.getMessages('group:300');
+    expect(messages[0]?.text).toBe('看[图片]');
+    expect(messages[0]?.imageUrls).toEqual(['https://cdn.example/a.jpg']);
+  });
+
   it('resolves group at mentions to member names', async () => {
     const { service, store, client } = setup();
     client.sendApi.mockImplementation(async (action: string) => {

@@ -6,8 +6,10 @@ export type AtNameResolver = (qq: string) => string | null | undefined;
 
 const CQ_CODE_RE = /\[CQ:([^,\]]+)(?:,([^\]]*))?\]/g;
 
+const IMAGE_LABEL = '[图片]';
+
 const SEGMENT_LABELS: Record<string, string> = {
-  image: '[图片]',
+  image: IMAGE_LABEL,
   record: '[语音]',
   video: '[视频]',
   file: '[文件]',
@@ -24,26 +26,46 @@ const SEGMENT_LABELS: Record<string, string> = {
   rps: '[猜拳]',
 };
 
+export interface ExtractedMessageContent {
+  text: string;
+  /**
+   * 图片地址，按出现顺序与 `text` 中每个 `[图片]` 占位符一一对应；
+   * 无法获取地址时为空字符串（占位符仍保留）。
+   */
+  imageUrls: string[];
+}
+
 /**
  * 从 OneBot v11 消息事件中提取可读文本内容。
  * - `message` 为字符串时，将 `[CQ:xxx,...]` 转为可读文本：at 转 `@昵称`/`@QQ号`，其余转 `[图片]` 等占位符。
  * - `message` 为段数组时，拼接 text 段、at 段，其余类型转占位符。
  * - 表情消息（face / mface / 商城表情图片）转为 `[表情:描述]`，文本中的 Emoji 同样转为该样式，
  *   避免在不支持 Emoji 字体的老设备上显示为乱码；无描述时退化为 `[表情]`。
+ * - 返回的 `imageUrls` 用于把 `[图片]` 渲染为可点击的链接。
  * - `resolveAtName` 可选：用于把 at 的 QQ 号解析为昵称/群名片。
  */
-export function extractMessageText(message: unknown, resolveAtName?: AtNameResolver): string {
+export function extractMessageContent(
+  message: unknown,
+  resolveAtName?: AtNameResolver,
+): ExtractedMessageContent {
   if (typeof message === 'string') {
+    const imageUrls: string[] = [];
     const text = message.replace(CQ_CODE_RE, (_m, type: string, params: string | undefined) => {
       if (type === 'at') {
         return formatCqAt(params ?? '', resolveAtName);
       }
-      return formatSegment(type, params === undefined ? undefined : parseCqParams(params)) ?? '';
+      const data = params === undefined ? undefined : parseCqParams(params);
+      if (isPlainImage(type, data)) {
+        imageUrls.push(imageUrlFromData(data));
+        return IMAGE_LABEL;
+      }
+      return formatSegment(type, data) ?? '';
     });
-    return replaceEmojiWithDescriptions(text);
+    return { text: replaceEmojiWithDescriptions(text), imageUrls };
   }
   if (Array.isArray(message)) {
     const parts: string[] = [];
+    const imageUrls: string[] = [];
     for (const seg of message) {
       if (!isRecord(seg)) continue;
       const typed = seg as unknown as OneBotMessageSegment;
@@ -51,14 +73,22 @@ export function extractMessageText(message: unknown, resolveAtName?: AtNameResol
         parts.push(typed.data.text);
       } else if (typed.type === 'at' && typed.data) {
         parts.push(formatMention(typed.data, resolveAtName));
+      } else if (isPlainImage(typed.type, typed.data)) {
+        imageUrls.push(imageUrlFromData(typed.data));
+        parts.push(IMAGE_LABEL);
       } else {
         const label = formatSegment(typed.type, typed.data);
         if (label) parts.push(label);
       }
     }
-    return replaceEmojiWithDescriptions(parts.join(''));
+    return { text: replaceEmojiWithDescriptions(parts.join('')), imageUrls };
   }
-  return '';
+  return { text: '', imageUrls: [] };
+}
+
+/** 仅提取可读文本，忽略图片链接信息（历史调用方与测试使用）。 */
+export function extractMessageText(message: unknown, resolveAtName?: AtNameResolver): string {
+  return extractMessageContent(message, resolveAtName).text;
 }
 
 /**
@@ -168,6 +198,20 @@ function describeFaceSummary(data?: Record<string, unknown>): string | null {
 function isMarketFaceImage(data?: Record<string, unknown>): boolean {
   if (!data) return false;
   return typeof data.emoji_id === 'string' || typeof data.emoji_id === 'number';
+}
+
+/** 普通图片段（非商城表情转换成的图片）。 */
+function isPlainImage(type: string, data?: Record<string, unknown>): boolean {
+  return type === 'image' && !isMarketFaceImage(data);
+}
+
+/** 从图片段取可访问的 http(s) 地址：优先 url，其次 file 本身是链接的情况。 */
+function imageUrlFromData(data?: Record<string, unknown>): string {
+  if (!data) return '';
+  for (const value of [data.url, data.file]) {
+    if (typeof value === 'string' && /^https?:\/\//i.test(value)) return value;
+  }
+  return '';
 }
 
 function normalizeFaceName(value: string): string | null {

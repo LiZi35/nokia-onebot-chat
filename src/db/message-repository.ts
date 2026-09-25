@@ -10,6 +10,7 @@ interface MessageRow {
   text: string;
   time: number;
   self: number;
+  image_urls: string | null;
 }
 
 /**
@@ -25,8 +26,8 @@ export class SqliteMessageRepository implements MessagePersistence {
   save(record: MessageRecord, keep: number): void {
     const insert = this.db.prepare(
       `INSERT INTO messages
-         (message_id, session_key, type, sender_id, sender_name, text, time, self)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+         (message_id, session_key, type, sender_id, sender_name, text, time, self, image_urls)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     const prune = this.db.prepare(
       `DELETE FROM messages
@@ -45,6 +46,7 @@ export class SqliteMessageRepository implements MessagePersistence {
         record.text,
         record.time,
         record.self ? 1 : 0,
+        serializeImageUrls(record.imageUrls),
       );
       prune.run(record.sessionKey, record.sessionKey, keep);
     });
@@ -54,7 +56,7 @@ export class SqliteMessageRepository implements MessagePersistence {
   listRecent(sessionKey: string, limit: number): MessageRecord[] {
     const rows = this.db
       .prepare(
-        `SELECT message_id, session_key, type, sender_id, sender_name, text, time, self
+        `SELECT message_id, session_key, type, sender_id, sender_name, text, time, self, image_urls
          FROM (
            SELECT * FROM messages WHERE session_key = ? ORDER BY id DESC LIMIT ?
          ) ORDER BY id ASC`,
@@ -70,6 +72,7 @@ export class SqliteMessageRepository implements MessagePersistence {
       text: row.text,
       time: row.time,
       self: row.self === 1,
+      imageUrls: parseImageUrls(row.image_urls),
     }));
   }
 
@@ -84,4 +87,22 @@ export class SqliteMessageRepository implements MessagePersistence {
     const row = this.db.prepare('SELECT COUNT(*) AS n FROM messages').get() as { n: number };
     return row.n;
   }
+}
+
+function serializeImageUrls(imageUrls: string[] | undefined): string | null {
+  if (!imageUrls || imageUrls.length === 0) return null;
+  return JSON.stringify(imageUrls);
+}
+
+function parseImageUrls(value: string | null): string[] | undefined {
+  if (!value) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    return undefined;
+  }
+  if (!Array.isArray(parsed)) return undefined;
+  const urls = parsed.filter((item): item is string => typeof item === 'string');
+  return urls.length > 0 ? urls : undefined;
 }

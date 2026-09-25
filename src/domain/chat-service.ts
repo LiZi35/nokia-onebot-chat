@@ -6,6 +6,7 @@ import type {
 } from '../onebot/types.js';
 import type { OneBotClient } from '../onebot/client.js';
 import {
+  extractMessageContent,
   extractMessageText,
   resolveSenderName,
   parseMentionText,
@@ -244,14 +245,17 @@ export class ChatService {
     const resolveAtName = (qq: string): string | null =>
       type === 'group' ? this.resolveGroupMemberName(peerId, qq) : null;
 
-    let text = extractMessageText(event.message, resolveAtName);
+    let content = extractMessageContent(event.message, resolveAtName);
     if (
-      text.length === 0 &&
+      content.text.length === 0 &&
       typeof event.raw_message === 'string' &&
       event.raw_message.length > 0
     ) {
-      text = extractMessageText(event.raw_message, resolveAtName);
+      content = extractMessageContent(event.raw_message, resolveAtName);
     }
+    const imageUrls = content.imageUrls.some((url) => url.length > 0)
+      ? content.imageUrls
+      : undefined;
 
     const self = event.user_id === this.selfId || event.sender?.user_id === this.selfId;
 
@@ -261,7 +265,8 @@ export class ChatService {
       type,
       senderId: event.user_id,
       senderName: resolveSenderName(event, this.selfId),
-      text,
+      text: content.text,
+      imageUrls,
       time: event.time,
       self,
     });

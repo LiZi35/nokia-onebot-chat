@@ -89,8 +89,9 @@ TRUST_PROXY=true      # 信任 nginx 传入的 X-Forwarded-* 头
 
 - 使用 `better-sqlite3`（同步 API，WAL 模式）保存两类数据：
   - `sessions` 表：登录态、CSRF 令牌与会话数据（koa-session 自定义 store），登录状态在服务重启后依然有效。
-  - `messages` 表：聊天记录，每个会话保留最近 `MESSAGES_PER_SESSION` 条，服务重启后仍可查看。
+  - `messages` 表：聊天记录（含图片消息的原始链接，`image_urls` 列存 JSON 数组），每个会话保留最近 `MESSAGES_PER_SESSION` 条，服务重启后仍可查看。
 - 内存仍是缓存：会话数上限 `MAX_SESSIONS`、单会话消息数上限 `MESSAGES_PER_SESSION`；数据库按会话截断历史，避免无限增长。
+- 旧库启动时自动补上 `image_urls` 列（见 `src/db/database.ts` 的 `ensureColumn`），无需手动迁移。
 
 ## 登录鉴权
 
@@ -110,6 +111,7 @@ TRUST_PROXY=true      # 信任 nginx 传入的 X-Forwarded-* 头
 
 - 所有页面均为服务端渲染的静态 HTML，包含内嵌 `<style>`，无 `<script>`。
 - 导航使用普通 `<a>` 链接，消息发送使用 `<form method="post">`。
+- 消息中的 `[图片]` 渲染为指向图片原地址的普通 `<a>` 链接，点击后由浏览器直接打开图片；取不到链接时保持纯文本占位符。
 - 发送成功后通过 302 重定向回到会话页（Post/Redirect/Get），刷新不会重复提交。
 - 表单校验、目标校验、CSRF 校验、消息长度限制全部在服务端完成。
 
@@ -134,7 +136,7 @@ src/
   onebot/                # OneBot v11 协议封装（可注入 socket 以便测试）
     client.ts            # 连接、断线重连、echo 匹配、超时、事件分发
     ws-socket.ts         # ws 库适配
-    message-format.ts    # 消息段提取纯文本、发送者名称解析
+    message-format.ts    # 消息段提取纯文本/图片链接、发送者名称解析
     emoji.ts             # 文本 Emoji 替换为 [表情:描述]
     emoji-names.ts       # Unicode Emoji 中文描述数据表
     face-names.ts        # QQ 表情 ID → 名称对照表
@@ -173,5 +175,6 @@ pnpm build         # 编译到 dist/
 - 历史消息：OneBot v11 标准接口无法可靠拉取历史消息，应用仅展示「本次运行期间收到/发出并已持久化的消息」，并在页面明确说明，不会伪造服务端历史。
 - 群聊场景：联调环境的账号暂无群聊数据，群聊路径已实现并有单元测试，但未经真实群消息验证。
 - 聊天记录持久化受 `MESSAGES_PER_SESSION` 截断，超出部分会被删除（不是无限保存）。
-- 本应用面向纯文本消息，图片、语音等富媒体消息在会话中显示为 `[图片]`、`[语音]` 等占位符。
+- 本应用面向纯文本消息，图片、语音等富媒体消息在会话中显示为 `[图片]`、`[语音]` 等占位符；其中 `[图片]` 是指向图片原地址的链接，点击即可用浏览器查看图片。
+- 图片链接直接使用 NapCat 上报的 QQ 图片地址，可能随 QQ 的链接有效期而失效；应用不会代为下载或长期保存图片。
 - 表情消息与文本中的 Emoji 统一显示为 `[表情:描述]`（如 `😭` → `[表情:大哭]`），避免在 Nokia 108 等缺少 Emoji 字体的设备上显示为乱码；无法识别的表情退化为 `[表情]`。

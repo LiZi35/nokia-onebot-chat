@@ -88,7 +88,7 @@ const CHAT_TEMPLATE = `{% extends "base.html" %}
       <div class="box">
         <strong>{{ m.senderName }}</strong>
         <span class="meta">[{{ m.typeLabel }}] {{ m.time | time }}</span>
-        <br>{{ m.text }}
+        <br>{% for p in m.parts %}{% if p.href %}<a href="{{ p.href }}">{{ p.text }}</a>{% else %}{{ p.text }}{% endif %}{% endfor %}
       </div>
     {% endfor %}
   {% endif %}
@@ -194,7 +194,19 @@ export interface ChatData extends PageData {
   csrf: string;
   isGroup: boolean;
   maxMessages: number;
-  messages: Array<{ senderName: string; typeLabel: string; time: number; text: string }>;
+  messages: Array<{
+    senderName: string;
+    typeLabel: string;
+    time: number;
+    text: string;
+    parts: MessagePart[];
+  }>;
+}
+
+/** 一条消息的渲染片段：普通文本，或指向图片地址的链接。 */
+export interface MessagePart {
+  text: string;
+  href?: string;
 }
 
 export interface ErrorData extends PageData {
@@ -239,12 +251,31 @@ export function formatMessageForView(
   m: MessageRecord,
   typeLabel: string,
 ): ChatData['messages'][number] {
+  const text = m.text.length > 0 ? m.text : '[非文本消息]';
   return {
     senderName: m.senderName,
     typeLabel,
     time: m.time,
-    text: m.text.length > 0 ? m.text : '[非文本消息]',
+    text,
+    parts: buildMessageParts(text, m.imageUrls),
   };
+}
+
+/** 把 `[图片]` 占位符拆成文本片段与图片链接，交给模板逐段转义渲染。 */
+function buildMessageParts(text: string, imageUrls: string[] | undefined): MessagePart[] {
+  if (!imageUrls || imageUrls.length === 0) return [{ text }];
+  const chunks = text.split('[图片]');
+  const parts: MessagePart[] = [];
+  let imageIndex = 0;
+  for (let i = 0; i < chunks.length; i++) {
+    const chunk = chunks[i] ?? '';
+    if (chunk.length > 0) parts.push({ text: chunk });
+    if (i === chunks.length - 1) break;
+    const url = imageUrls[imageIndex] ?? '';
+    imageIndex += 1;
+    parts.push(url.length > 0 ? { text: '[图片]', href: url } : { text: '[图片]' });
+  }
+  return parts;
 }
 
 function truncate(text: string, max: number): string {

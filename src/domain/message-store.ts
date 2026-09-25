@@ -11,6 +11,8 @@ export interface MessageRecord {
   text: string;
   time: number;
   self: boolean;
+  /** 与 text 中 `[图片]` 占位符一一对应的图片地址（用于渲染可点击链接）。 */
+  imageUrls?: string[];
 }
 
 export interface SessionSummary {

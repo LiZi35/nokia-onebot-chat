@@ -178,6 +178,40 @@ describe('routes', () => {
     expect(res.text).toContain('&lt;script&gt;');
     expect(res.text).not.toContain('<img src=x');
   });
+
+  it('renders image placeholders as links', async () => {
+    const { app, store } = await buildApp();
+    store.add({
+      messageId: 11,
+      sessionKey: 'private:100',
+      type: 'private',
+      senderId: 100,
+      senderName: 'Alice',
+      text: '看[图片]',
+      imageUrls: ['https://cdn.example/a.png?x=1&y=2'],
+      time: 1,
+      self: false,
+    });
+    const res = await request(app.callback()).get('/chat/private/100');
+    expect(res.text).toContain('<a href="https://cdn.example/a.png?x=1&amp;y=2">[图片]</a>');
+  });
+
+  it('keeps image placeholders without urls as plain text', async () => {
+    const { app, store } = await buildApp();
+    store.add({
+      messageId: 12,
+      sessionKey: 'private:100',
+      type: 'private',
+      senderId: 100,
+      senderName: 'Alice',
+      text: '看[图片]',
+      time: 1,
+      self: false,
+    });
+    const res = await request(app.callback()).get('/chat/private/100');
+    expect(res.text).toContain('看[图片]');
+    expect(res.text).not.toContain('<a href="https://cdn.example');
+  });
 });
 
 describe('normalizeContentType middleware', () => {

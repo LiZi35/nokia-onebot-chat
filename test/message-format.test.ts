@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   extractMessageText,
+  extractMessageContent,
   resolveSenderName,
   parseMentionText,
   containsMention,
@@ -120,6 +121,43 @@ describe('extractMessageText', () => {
   it('keeps text-style symbols and plain text unchanged', () => {
     expect(extractMessageText('© 2024 (c)')).toBe('© 2024 (c)');
     expect(extractMessageText('你好，世界')).toBe('你好，世界');
+  });
+});
+
+describe('extractMessageContent', () => {
+  it('collects image urls aligned with [图片] placeholders', () => {
+    const content = extractMessageContent([
+      { type: 'text', data: { text: '看' } },
+      { type: 'image', data: { file: 'a.png', url: 'https://cdn.example/a.png' } },
+      { type: 'text', data: { text: '和' } },
+      { type: 'image', data: { file: 'b.png' } },
+    ]);
+    expect(content.text).toBe('看[图片]和[图片]');
+    expect(content.imageUrls).toEqual(['https://cdn.example/a.png', '']);
+  });
+
+  it('collects image urls from CQ codes', () => {
+    const content = extractMessageContent('[CQ:image,file=a.png,url=https://cdn.example/a.png]');
+    expect(content.text).toBe('[图片]');
+    expect(content.imageUrls).toEqual(['https://cdn.example/a.png']);
+  });
+
+  it('falls back to a URL-like file value', () => {
+    const content = extractMessageContent([
+      { type: 'image', data: { file: 'http://cdn.example/a.png' } },
+    ]);
+    expect(content.imageUrls).toEqual(['http://cdn.example/a.png']);
+  });
+
+  it('does not treat market face images as pictures', () => {
+    const content = extractMessageContent([
+      {
+        type: 'image',
+        data: { file: 'x.gif', emoji_id: 'abc', summary: '猫猫', url: 'https://cdn.example/x.gif' },
+      },
+    ]);
+    expect(content.text).toBe('[表情:猫猫]');
+    expect(content.imageUrls).toEqual([]);
   });
 });
 

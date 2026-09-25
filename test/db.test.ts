@@ -108,6 +108,15 @@ describe('MessageStore with persistence', () => {
     expect(store.getMessages('private:1')[0]?.text).toBe('first');
     db.close();
   });
+
+  it('normalizes emoji in persisted records on load', () => {
+    const db = openDatabase(':memory:');
+    const repo = new SqliteMessageRepository(db);
+    repo.save(record({ sessionKey: 'group:7', messageId: 1, text: '😭' }), 10);
+    const store = new MessageStore({ maxSessions: 10, messagesPerSession: 10 }, repo);
+    expect(store.getMessages('group:7')[0]?.text).toBe('[表情:大哭]');
+    db.close();
+  });
 });
 
 describe('SqliteSessionStore', () => {

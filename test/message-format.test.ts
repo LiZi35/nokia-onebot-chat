@@ -74,12 +74,52 @@ describe('extractMessageText', () => {
         { type: 'text', data: { text: '看' } },
       ]),
     ).toBe('[图片]看');
-    expect(extractMessageText([{ type: 'face', data: { id: '1' } }])).toBe('[表情]');
+    expect(extractMessageText([{ type: 'face', data: { id: '1' } }])).toBe('[表情:撇嘴]');
   });
 
   it('converts non-text CQ codes to placeholders instead of raw codes', () => {
     expect(extractMessageText('[CQ:image,file=abc.png,url=http://x]')).toBe('[图片]');
     expect(extractMessageText('看[CQ:image,file=abc.png]图')).toBe('看[图片]图');
+  });
+
+  it('renders face segments with QQ face names', () => {
+    expect(extractMessageText([{ type: 'face', data: { id: '14' } }])).toBe('[表情:微笑]');
+    expect(extractMessageText([{ type: 'face', data: { id: 9 } }])).toBe('[表情:大哭]');
+  });
+
+  it('prefers face raw text and falls back for unknown faces', () => {
+    expect(
+      extractMessageText([{ type: 'face', data: { id: '14', raw: { faceText: '/呲牙' } } }]),
+    ).toBe('[表情:呲牙]');
+    expect(extractMessageText([{ type: 'face', data: { id: '99999' } }])).toBe('[表情]');
+  });
+
+  it('renders QQ face CQ codes with names', () => {
+    expect(extractMessageText('看[CQ:face,id=14]')).toBe('看[表情:微笑]');
+  });
+
+  it('renders market faces with their summary', () => {
+    expect(extractMessageText([{ type: 'mface', data: { summary: '[动画表情]' } }])).toBe(
+      '[表情:动画表情]',
+    );
+    expect(
+      extractMessageText([
+        { type: 'image', data: { file: 'x.gif', emoji_id: 'abc', summary: '猫猫' } },
+      ]),
+    ).toBe('[表情:猫猫]');
+  });
+
+  it('replaces emoji in text with described placeholders', () => {
+    expect(extractMessageText('你好😀')).toBe('你好[表情:开心]');
+    expect(extractMessageText('😭😭😭😭')).toBe('[表情:大哭][表情:大哭][表情:大哭][表情:大哭]');
+    expect(extractMessageText('👍🏽')).toBe('[表情:赞]');
+    expect(extractMessageText('👨‍👩‍👧')).toBe('[表情:家庭]');
+    expect(extractMessageText('🇨🇳')).toBe('[表情:中国国旗]');
+  });
+
+  it('keeps text-style symbols and plain text unchanged', () => {
+    expect(extractMessageText('© 2024 (c)')).toBe('© 2024 (c)');
+    expect(extractMessageText('你好，世界')).toBe('你好，世界');
   });
 });
 

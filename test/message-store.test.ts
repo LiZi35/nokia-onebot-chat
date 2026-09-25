@@ -78,4 +78,10 @@ describe('MessageStore', () => {
     expect(summaries[0]?.sessionKey).toBe('private:1');
     expect(summaries[0]?.lastMessage?.text).toBe('c');
   });
+
+  it('normalizes emoji in message text', () => {
+    const store = new MessageStore({ maxSessions: 10, messagesPerSession: 10 });
+    store.add(record({ text: '你好😀' }));
+    expect(store.getMessages('private:100')[0]?.text).toBe('你好[表情:开心]');
+  });
 });

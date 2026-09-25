@@ -1,3 +1,5 @@
+import { replaceEmojiWithDescriptions } from '../onebot/emoji.js';
+
 export type ChatType = 'private' | 'group';
 
 export interface MessageRecord {
@@ -68,8 +70,9 @@ export class MessageStore {
   }
 
   add(record: MessageRecord): void {
-    if (this.insertIntoMemory(record, true)) {
-      this.persistence?.save(record, this.messagesPerSession);
+    const normalized = normalizeRecord(record);
+    if (this.insertIntoMemory(normalized, true)) {
+      this.persistence?.save(normalized, this.messagesPerSession);
     }
   }
 
@@ -123,23 +126,24 @@ export class MessageStore {
   }
 
   private insertIntoMemory(record: MessageRecord, dedupe: boolean): boolean {
-    let list = this.messages.get(record.sessionKey);
+    const normalized = normalizeRecord(record);
+    let list = this.messages.get(normalized.sessionKey);
     if (!list) {
       list = [];
-      this.messages.set(record.sessionKey, list);
-      this.order.push(record.sessionKey);
+      this.messages.set(normalized.sessionKey, list);
+      this.order.push(normalized.sessionKey);
     }
 
-    if (dedupe && list.some((m) => m.messageId === record.messageId)) {
+    if (dedupe && list.some((m) => m.messageId === normalized.messageId)) {
       return false;
     }
 
-    list.push(record);
+    list.push(normalized);
     if (list.length > this.messagesPerSession) {
       list.splice(0, list.length - this.messagesPerSession);
     }
 
-    this.touch(record.sessionKey);
+    this.touch(normalized.sessionKey);
     this.evictIfNeeded();
     return true;
   }
@@ -157,4 +161,10 @@ export class MessageStore {
       this.messages.delete(oldest);
     }
   }
+}
+
+/** 历史消息可能存有原始 Emoji，展示前统一转换为 `[表情:描述]`。 */
+function normalizeRecord(record: MessageRecord): MessageRecord {
+  const text = replaceEmojiWithDescriptions(record.text);
+  return text === record.text ? record : { ...record, text };
 }
